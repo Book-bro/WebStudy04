@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.buyer.dao.BuyerDAO">
+	<sql id="searchFrag">
+		<where>
+			<if test="simpleCondition neq null and @org.apache.commons.lang3.StringUtils@isNotBlank(simpleCondition.searchWord)">
+				<choose>
+					<when test="simpleCondition.searchType eq 'name'">
+						INSTR(BUYER_NAME, #{simpleCondition.searchWord}) > 0
+					</when>
+					<when test="simpleCondition.searchType eq 'address'">
+						INSTR(BUYER_ADD1, #{simpleCondition.searchWord}) > 0
+					</when>
+					<otherwise>
+						INSTR(BUYER_NAME, #{simpleCondition.searchWord}) > 0
+						OR
+						INSTR(BUYER_ADD1, #{simpleCondition.searchWord}) > 0
+					</otherwise>
+				</choose>
+			</if>
+		 </where>
+	</sql>
+	<select id="selectTotalRecord" parameterType="PagingVO" resultType="int">
+		SELECT COUNT(*)
+		FROM BUYER
+		<include refid="searchFrag" />
+	</select>
+	<select id="selectBuyerList" parameterType="PagingVO" resultType="BuyerVO">
+		WITH BUYERVIEW AS (
+		    SELECT BUYER_ID, BUYER_NAME, LPROD_NM
+		        , BUYER_ADD1, BUYER_COMTEL, BUYER_MAIL
+		        , (SELECT COUNT(*) FROM PROD WHERE PROD_BUYER = BUYER_ID) PROD_COUNT
+		    FROM BUYER INNER JOIN LPROD ON (BUYER_LGU = LPROD_GU)
+		    <include refid="searchFrag" />
+		    ORDER BY BUYER.ROWID DESC
+		), BUYERROWS AS (
+		    SELECT BUYERVIEW.*, ROWNUM RNUM
+		    FROM BUYERVIEW
+		)SELECT *
+		FROM BUYERROWS
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</select>
+	
+	<resultMap type="BuyerVO" id="buyerMap" autoMapping="true">
+		<id property="buyerId" column="Buyer_ID"/>
+		<collection property="prodList" ofType="ProdVO" autoMapping="true" />
+	</resultMap> 
+	<select id="selectBuyer" parameterType="string" resultMap="buyerMap">
+		SELECT
+		    BUYER_ID,    BUYER_NAME,    BUYER_LGU, LPROD_NM,
+		    BUYER_BANK,    BUYER_BANKNO,    BUYER_BANKNAME,
+		    BUYER_ZIP,    BUYER_ADD1,    BUYER_ADD2,
+		    BUYER_COMTEL,    BUYER_FAX,    BUYER_MAIL,
+		    BUYER_CHARGER
+		    , PROD_ID, PROD_NAME, PROD_COST, PROD_PRICE, PROD_SALE
+		FROM BUYER INNER JOIN LPROD ON (BUYER_LGU = LPROD_GU)
+		            LEFT OUTER JOIN PROD ON (BUYER_ID = PROD_BUYER)
+		WHERE BUYER_ID = #{noname}            
+	</select>
+</mapper>

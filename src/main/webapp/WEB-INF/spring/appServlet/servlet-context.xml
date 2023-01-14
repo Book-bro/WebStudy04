@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:c="http://www.springframework.org/schema/c"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.3.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd">
+
+<!-- 	HandlerMapping, HandlerAdapter, ViewResolver, Validator
+		 등의 MVC 프로그래밍 모델에서 사용될 전략 객체들이 자동 등록됨. -->
+	<mvc:annotation-driven validator="validator"></mvc:annotation-driven>
+	
+	<!-- 로케일에 따른 언어별 메시지 처리를 위한 전략 객체. -->
+	<bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource" 
+		p:basenames="kr.or.ddit.msgs.errorMessage,kr.or.ddit.msgs.message"
+	/>
+	
+	<bean id="validator" class="org.springframework.validation.beanvalidation.LocalValidatorFactoryBean"
+		p:validationMessageSource-ref="messageSource"
+	/>
+	
+	<!-- 마지막순서는 찾는게 없으면 404를 띄어줌, 그래서 이 기능의 순서는 마지막에 해야함 -->
+	<bean id="IRVR" class="org.springframework.web.servlet.view.InternalResourceViewResolver"
+		p:prefix="/WEB-INF/views/"
+		p:suffix=".jsp"
+		p:order="2"
+	/>
+	<!-- 찾는게 없으면 다음순서로감 -->
+	<bean id="BNVR" class="org.springframework.web.servlet.view.BeanNameViewResolver"
+		p:order="1"
+	/>
+	
+	<bean id="jsonView" class="org.springframework.web.servlet.view.json.MappingJackson2JsonView"/>
+	
+	<!-- Controller layer를 bean으로 등록하기 위한 필터링 설정 -->
+	<context:component-scan base-package="kr.or.ddit" use-default-filters="false">
+		<context:include-filter type="annotation" 
+			expression="org.springframework.stereotype.Controller"/>
+		<context:include-filter type="annotation" 
+			expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+	</context:component-scan>
+	
+	<!-- LocaleChangeInterceptor가 변경한 로케일 정보를 저장하기 위해 사용하는 전략객체 -->
+	<bean id="localeResolver" class="org.springframework.web.servlet.i18n.CookieLocaleResolver"
+		p:cookieName="localeCookie"
+		p:cookiePath="/"
+		p:cookieMaxAge="#{60*60*24*5}"
+	/>
+	
+	<!-- HandlerInterceptor : 스프링 컨테이너 밖에 존재하는 웹 필터의 역할을 대신하는 객체 -->
+	<mvc:interceptors>
+		<mvc:interceptor>
+			<mvc:mapping path="/**"/> <!-- /**모든요청을 다받으려면 * 2번씀 -->
+			<!-- language 이름의 요청 파라미터를 기준으로 현재 로케일을 변경하기 위한 인터셉터 -->
+			<bean class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor"
+				p:paramName="language"
+			/>
+		</mvc:interceptor>
+	</mvc:interceptors>
+	<!-- 정적자원이 일괄관리 되는 경우 활용. -->
+	<mvc:resources location="/resources/" mapping="/resources/**" cache-period="0"/>
+</beans>
+
+

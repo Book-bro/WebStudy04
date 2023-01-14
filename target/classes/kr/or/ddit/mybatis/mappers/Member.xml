@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.member.dao.MemberDAO">
+	<sql id="searchFrag">
+		<where>
+      		<if test="simpleCondition neq null and @org.apache.commons.lang3.StringUtils@isNotBlank(simpleCondition.searchWord)">
+      			<choose>
+      				<when test="simpleCondition.searchType eq 'name'">
+      					INSTR(MEM_NAME, #{simpleCondition.searchWord}) > 0
+      				</when>
+      				<when test="simpleCondition.searchType eq 'address'">
+      					INSTR(MEM_ADD1, #{simpleCondition.searchWord}) > 0
+      				</when>
+      				<otherwise>
+      					INSTR(MEM_NAME, #{simpleCondition.searchWord}) > 0
+      					OR
+      					INSTR(MEM_ADD1, #{simpleCondition.searchWord}) > 0
+      				</otherwise>
+      			</choose>
+      		</if>
+   		</where>
+	</sql>
+	<select id="selectTotalRecord" resultType="int" parameterType="PagingVO">
+		SELECT COUNT(*)
+		FROM MEMBER
+		<include refid="searchFrag"/>
+	</select>
+	
+	<select id="selectMemberList" resultType="MemberVO" parameterType="PagingVO">
+		SELECT B.*
+		FROM (
+			SELECT A.*, ROWNUM RNUM
+			FROM (
+				SELECT MEM_ID, MEM_NAME, MEM_ADD1, MEM_HP
+		          , MEM_MAIL, MEM_MILEAGE
+		          , (SELECT COUNT(DISTINCT CART_PROD) 
+		            FROM CART 
+		            WHERE CART_MEMBER = MEM_ID) CART_COUNT
+	      		FROM MEMBER
+	      		<include refid="searchFrag"/>
+	      		ORDER BY ROWID DESC
+			)A
+		)B
+		<![CDATA[
+			WHERE RNUM >= #{startRow} AND RNUM <= #{endRow}
+		]]>
+	</select>
+	
+	<resultMap type="MemberVO" id="memberMap" autoMapping="true">
+		<id property="memId" column="MEM_ID"/>
+		<collection property="prodList" ofType="ProdVO" autoMapping="true">
+			<association property="buyer" javaType="BuyerVO" autoMapping="true"/>
+		</collection>
+	</resultMap>
+	
+	<select id="selectMember" parameterType="String" resultMap="memberMap">
+		WITH CARTVIEW AS (
+         SELECT DISTINCT CART_MEMBER, CART_PROD
+         FROM CART
+      ), PRODVIEW AS (
+         SELECT PROD.*
+               , LPROD_NM
+               , BUYER.*
+         FROM PROD INNER JOIN LPROD ON (PROD_LGU = LPROD_GU) 
+                 INNER JOIN BUYER ON (PROD_BUYER = BUYER_ID)
+      ), CARTPROD AS (
+         SELECT CART_MEMBER
+            , PRODVIEW.*
+         FROM CARTVIEW INNER JOIN PRODVIEW ON (CART_PROD = PROD_ID)
+      )
+      SELECT
+          MEM_ID,     MEM_PASS,   MEM_NAME,
+          MEM_REGNO1, MEM_REGNO2,
+          TO_CHAR(MEM_BIR, 'YYYY-MM-DD') MEM_BIR,
+          MEM_ZIP,    MEM_ADD1,   MEM_ADD2,
+          MEM_HOMETEL,    MEM_COMTEL, MEM_HP,
+          MEM_MAIL,   MEM_JOB,    MEM_LIKE,
+          MEM_MEMORIAL,
+          TO_CHAR(MEM_MEMORIALDAY, 'YYYY-MM-DD') MEM_MEMORIALDAY,
+          MEM_MILEAGE,
+          MEM_DELETE
+          , MEM_ROLE
+          , MEM_IMG
+          , PROD_ID, PROD_NAME, PROD_COST, PROD_PRICE, PROD_MILEAGE
+          , LPROD_NM
+          , BUYER_NAME , BUYER_ADD1, BUYER_CHARGER
+      FROM    MEMBER LEFT OUTER JOIN   CARTPROD ON (MEM_ID = CART_MEMBER)                
+      WHERE MEM_ID = #{memId}  
+	</select>
+	<insert id="insertMember" parameterType="MemberVO">
+		INSERT INTO member (
+		    mem_id,	
+		    mem_pass,
+		    mem_name,
+		    mem_regno1,
+		    mem_regno2,
+		    mem_bir,
+		    mem_zip,
+		    mem_add1,
+		    mem_add2,
+	    	mem_hometel,		mem_comtel,		    mem_hp,
+		    mem_mail,		    mem_job,		    mem_like,
+		    mem_memorial,		mem_memorialday	
+		    <if test="memImg neq null and memImg.length gt 0">
+		    ,mem_img
+		    </if>
+		) VALUES (
+	     	#{memId,jdbcType=VARCHAR}
+			, #{memPass,jdbcType=VARCHAR}
+			, #{memName,jdbcType=VARCHAR}
+			, #{memRegno1,jdbcType=CHAR}
+			, #{memRegno2,jdbcType=CHAR}
+			, TO_DATE(#{memBir,jdbcType=DATE})
+			, #{memZip,jdbcType=CHAR}
+			, #{memAdd1,jdbcType=VARCHAR}
+			, #{memAdd2,jdbcType=VARCHAR}
+			, #{memHometel,jdbcType=VARCHAR}
+			, #{memComtel,jdbcType=VARCHAR}
+			, #{memHp,jdbcType=VARCHAR}
+			, #{memMail,jdbcType=VARCHAR}
+			, #{memJob,jdbcType=VARCHAR}
+			, #{memLike,jdbcType=VARCHAR}
+			, #{memMemorial,jdbcType=VARCHAR}
+			, TO_DATE(#{memMemorialday,jdbcType=DATE}, 'YYYY-MM-DD')
+			<if test="memImg neq null and memImg.length gt 0">
+		    , #{memImg,jdbcType=BLOB}
+		    </if>
+		)
+	</insert>
+	<update id="updateMember" parameterType="MemberVO">
+		UPDATE MEMBER
+      		SET
+	         MEM_REGNO1 = #{memRegno1,jdbcType=CHAR}
+	         , MEM_REGNO2 = #{memRegno2,jdbcType=CHAR}
+	         , MEM_ZIP = #{memZip,jdbcType=CHAR}
+	         , MEM_ADD1 = #{memAdd1,jdbcType=VARCHAR}
+	         , MEM_ADD2 = #{memAdd2,jdbcType=VARCHAR}
+	         , MEM_HOMETEL = #{memHometel,jdbcType=VARCHAR}
+	         , MEM_COMTEL = #{memComtel,jdbcType=VARCHAR}
+	         , MEM_HP = #{memHp,jdbcType=VARCHAR}
+	         , MEM_MAIL = #{memMail,jdbcType=VARCHAR}
+	         , MEM_JOB = #{memJob,jdbcType=VARCHAR}
+	         , MEM_LIKE = #{memLike,jdbcType=VARCHAR}
+	         , MEM_MEMORIAL = #{memMemorial,jdbcType=VARCHAR}
+	         , MEM_MEMORIALDAY = TO_DATE(#{memMemorialday,jdbcType=DATE}, 'YYYY-MM-DD')
+	         <if test="memImg neq null and memImg.length gt 0">
+		     , MEM_IMG = #{memImg,jdbcType=BLOB}
+		     </if>
+      	WHERE MEM_ID = #{memId}
+	</update>
+	<delete id="deleteMember" parameterType="String">
+		UPDATE MEMBER
+		SET
+		MEM_DELETE = '1'
+		WHERE MEM_ID = #{memId}
+		     
+	</delete>
+</mapper>
